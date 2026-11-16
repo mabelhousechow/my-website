@@ -1,204 +1,26 @@
-const photoInput = document.querySelector('#photo-input');
-const uploadBox = document.querySelector('#upload-box');
-const uploadPlaceholder = document.querySelector('#upload-placeholder');
-const uploadPreview = document.querySelector('#upload-preview');
-const removePhoto = document.querySelector('#remove-photo');
-const description = document.querySelector('#description');
-const charCount = document.querySelector('#char-count');
-const toast = document.querySelector('#toast');
-const resultOverlay = document.querySelector('#result-overlay');
-const form = document.querySelector('#assessment-form');
-const selectedChoices = new Set();
-let localPhotoUrl = null;
-let localPhotoFile = null;
-let toastTimer;
-
-function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add('visible');
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => toast.classList.remove('visible'), 2600);
-}
-
-function showPhoto(file) {
-  if (!file) return;
-  if (!file.type.startsWith('image/')) {
-    photoInput.value = '';
-    showToast('请选择 JPG、PNG 或其他图片格式。');
-    return;
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    photoInput.value = '';
-    showToast('图片大小请控制在 10MB 以内。');
-    return;
-  }
-  if (localPhotoUrl) URL.revokeObjectURL(localPhotoUrl);
-  localPhotoFile = file;
-  localPhotoUrl = URL.createObjectURL(file);
-  uploadPreview.src = localPhotoUrl;
-  uploadPreview.hidden = false;
-  uploadPlaceholder.hidden = true;
-  removePhoto.hidden = false;
-}
-
-photoInput.addEventListener('change', () => showPhoto(photoInput.files?.[0]));
-removePhoto.addEventListener('click', (event) => {
-  event.stopPropagation();
-  photoInput.value = '';
-  uploadPreview.removeAttribute('src');
-  uploadPreview.hidden = true;
-  uploadPlaceholder.hidden = false;
-  removePhoto.hidden = true;
-  if (localPhotoUrl) URL.revokeObjectURL(localPhotoUrl);
-  localPhotoUrl = null;
-  localPhotoFile = null;
-});
-
-uploadBox.addEventListener('dragover', (event) => {
-  event.preventDefault();
-  uploadBox.classList.add('dragover');
-});
-uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
-uploadBox.addEventListener('drop', (event) => {
-  event.preventDefault();
-  uploadBox.classList.remove('dragover');
-  showPhoto(event.dataTransfer.files?.[0]);
-});
-uploadBox.addEventListener('keydown', (event) => {
-  if ((event.key === 'Enter' || event.key === ' ') && event.target === uploadBox) {
-    event.preventDefault();
-    photoInput.click();
-  }
-});
-
-document.querySelectorAll('.choice-chip').forEach((chip) => {
-  chip.addEventListener('click', () => {
-    const choice = chip.dataset.choice;
-    if (selectedChoices.has(choice)) {
-      selectedChoices.delete(choice);
-      chip.classList.remove('selected');
-      chip.setAttribute('aria-pressed', 'false');
-    } else {
-      selectedChoices.add(choice);
-      chip.classList.add('selected');
-      chip.setAttribute('aria-pressed', 'true');
-    }
-  });
-});
-
-description.addEventListener('input', () => {
-  charCount.textContent = `${description.value.length} / 240`;
-});
-
-document.querySelectorAll('.concern-card').forEach((card) => {
-  card.addEventListener('click', () => {
-    const desired = card.dataset.concern;
-    const mapping = {
-      '头皮容易出油': '头皮出油',
-      '发丝干枯毛躁': '发丝干枯',
-      '发缝看起来明显': '发缝变化',
-      '近期掉发感受变多': '日常掉发',
-    };
-    const chip = [...document.querySelectorAll('.choice-chip')].find((item) => item.dataset.choice === mapping[desired]);
-    if (chip && !selectedChoices.has(chip.dataset.choice)) chip.click();
-    card.classList.add('selected');
-    document.querySelector('#assessment').scrollIntoView({ behavior: 'smooth' });
-  });
-});
-
-function makeReport() {
-  const choices = [...selectedChoices];
-  const notes = description.value.trim();
-  const all = [...choices, ...(notes ? [notes] : [])];
-  const resultType = choices.includes('头皮出油') && choices.includes('发丝干枯')
-    ? '头皮与发丝分区观察'
-    : choices.includes('头皮出油') || choices.includes('头皮敏感')
-      ? '头皮舒适度观察'
-      : choices.includes('发丝干枯') || choices.includes('发缝变化')
-        ? '发丝状态记录型'
-        : choices.includes('日常掉发')
-          ? '日常变化记录型'
-          : '日常平衡观察';
-  document.querySelector('#result-type').textContent = resultType;
-
-  const tags = document.querySelector('#result-tags');
-  tags.replaceChildren();
-  (choices.length ? choices : ['综合状态观察']).forEach((label) => {
-    const tag = document.createElement('span');
-    tag.textContent = label;
-    tags.append(tag);
-  });
-
-  let observation = '记录洗护后的头皮舒适感，以及发丝在一周中的变化。';
-  let recommendation = '尝试在相近光线下记录状态，并保持简单、稳定的洗护节奏，再根据真实感受逐步调整。';
-  if (choices.includes('头皮出油')) {
-    observation = '观察洗发后清爽感能维持多久，以及运动、天气和作息是否带来变化。';
-    recommendation = '按头皮实际出油情况安排清洁，轻柔清洁头皮，并记录洗护后的舒适程度。';
-  } else if (choices.includes('发丝干枯')) {
-    observation = '留意发尾干燥、打结的频率，以及吹风或染烫后的手感变化。';
-    recommendation = '洗后轻柔擦干，减少反复高温造型，并观察发尾对日常护理的感受。';
-  } else if (choices.includes('头皮敏感')) {
-    observation = '记录头皮紧绷、泛红或不适的时间点，以及近期使用的洗护产品。';
-    recommendation = '近期尽量保持洗护步骤简单；如果持续不适或加重，建议咨询专业人士。';
-  } else if (choices.includes('发缝变化') || choices.includes('日常掉发')) {
-    observation = '在相近光线与角度下做简单记录，观察一段时间的变化趋势。';
-    recommendation = '避免单次观察就下结论；若变化持续或让你担心，可咨询皮肤科或相关专业人士。';
-  }
-  if (notes) observation += ` 你提到的“${notes.slice(0, 42)}${notes.length > 42 ? '…' : ''}”也可以作为后续记录的线索。`;
-  document.querySelector('#result-observation').textContent = observation;
-  document.querySelector('#result-recommendation').textContent = recommendation;
-}
-
-function openReport() {
-  makeReport();
-  resultOverlay.classList.add('open');
-  resultOverlay.setAttribute('aria-hidden', 'false');
-  document.body.style.overflow = 'hidden';
-  document.querySelector('#close-report').focus();
-}
-function closeReport() {
-  resultOverlay.classList.remove('open');
-  resultOverlay.setAttribute('aria-hidden', 'true');
-  document.body.style.overflow = '';
-}
-
-form.addEventListener('submit', (event) => {
-  event.preventDefault();
-  if (!selectedChoices.size && !description.value.trim() && !localPhotoFile) {
-    showToast('先选择一个关心的方向，或写下你的感受吧。');
-    document.querySelector('.concern-field-label').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
-  }
-  openReport();
-});
-
-document.querySelector('#modal-close').addEventListener('click', closeReport);
-document.querySelector('#close-report').addEventListener('click', closeReport);
-document.querySelector('#retry-form').addEventListener('click', () => {
-  closeReport();
-  document.querySelector('#assessment').scrollIntoView({ behavior: 'smooth' });
-});
-resultOverlay.addEventListener('click', (event) => {
-  if (event.target === resultOverlay) closeReport();
-});
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && resultOverlay.classList.contains('open')) closeReport();
-});
-
-const menuToggle = document.querySelector('.menu-toggle');
-const mobileNav = document.querySelector('.mobile-nav');
-menuToggle.addEventListener('click', () => {
-  const open = menuToggle.getAttribute('aria-expanded') !== 'true';
-  menuToggle.setAttribute('aria-expanded', String(open));
-  mobileNav.classList.toggle('open', open);
-});
-mobileNav.querySelectorAll('a').forEach((link) => {
-  link.addEventListener('click', () => {
-    menuToggle.setAttribute('aria-expanded', 'false');
-    mobileNav.classList.remove('open');
-  });
-});
-
-window.addEventListener('beforeunload', () => {
-  if (localPhotoUrl) URL.revokeObjectURL(localPhotoUrl);
-});
+const $ = (s) => document.querySelector(s);
+const questions = [
+  {title:'最近，最想改善哪一点？',help:'选一个你最关心的方向。',options:['头皮容易出油','发丝干枯毛躁','头皮容易干痒','发缝或掉发变化','想了解日常养护']},
+  {title:'这样的感受持续多久了？',help:'凭最近的印象选择就好。',options:['最近才注意到','已经有一段时间','时好时坏，说不准']},
+  {title:'最近的生活节奏怎么样？',help:'这一题帮你找到一个容易开始的小习惯。',options:['作息比较规律','经常熬夜或压力大','近期染烫或频繁造型','没有特别留意']}
+];
+let step=0, answers=[null,null,null], photoUrl=null, toastTimer;
+function show(view){for(const id of ['welcome','quiz','result'])$('#'+id).hidden=id!==view; window.scrollTo({top:0,behavior:'instant'});}
+function render(){const q=questions[step];$('#quiz-title').textContent=q.title;$('#question-help').textContent=q.help;$('#step-label').textContent=`0${step+1} / 03`;$('#progress-fill').style.width=`${(step+1)/3*100}%`;$('#answers').replaceChildren();q.options.forEach((label,index)=>{const button=document.createElement('button');button.type='button';button.className='answer'+(answers[step]===index?' selected':'');button.setAttribute('aria-pressed',String(answers[step]===index));const circle=document.createElement('span');circle.className='circle';circle.textContent=answers[step]===index?'✓':'';const text=document.createElement('span');text.textContent=label;button.append(circle,text);button.onclick=()=>{answers[step]=index;render();};$('#answers').append(button);});$('#optional').hidden=step!==2;$('#next').replaceChildren(document.createTextNode(step===2?'查看我的初步报告':'下一题'));const arrow=document.createElement('span');arrow.textContent=step===2?'↗':'→';$('#next').append(arrow);$('#quiz-error').textContent='';}
+$('#start').onclick=()=>{show('quiz');render();$('#quiz-title').focus();};
+$('#back').onclick=()=>{if(step===0)show('welcome');else{step--;render();$('#quiz-title').focus();}};
+$('#next').onclick=()=>{if(answers[step]===null){$('#quiz-error').textContent='选一个最接近你的感受，再继续吧。';return;}if(step<2){step++;render();$('#quiz-title').focus();}else{makeReport();show('result');$('#report-title').focus();}};
+const reports=[
+ {type:'头皮清爽感养护',observation:'你提到头皮容易出油。清爽感会受到天气、运动、洗护习惯等因素影响，可以先从记录洗后多久开始觉得油腻或闷入手。',advice:'根据实际出油与舒适程度安排洗发，温水轻柔清洁头皮；护发素以发中至发尾为主，充分冲洗。',followup:'留意洗后清爽感能维持多久，以及运动、戴帽子之后的变化。'},
+ {type:'发丝柔顺度养护',observation:'你目前更关注干枯和毛躁。发尾手感、打结频率以及染烫和吹风习惯，可以帮助你更具体地描述发丝状态。',advice:'洗后用毛巾轻按吸水，减少用力揉搓；吹风时保持适当距离，避免长时间高温停留在同一区域。',followup:'留意发尾打结、梳理阻力和造型后的手感，观察简单护理带来的变化。'},
+ {type:'头皮舒适度养护',observation:'你提到头皮容易干痒。仅凭感受还不能确定原因，可以先留意不适出现的时间，以及近期是否更换了洗护产品。',advice:'先保持洗护步骤简单，避免用指甲抓挠和过热的水；若新产品使用后出现不适，可暂停并观察。',followup:'记录干痒出现的频率、是否伴随红肿或头屑；持续或加重时及时咨询皮肤科。'},
+ {type:'发缝与掉发变化记录',observation:'你更关注发缝或掉发变化。单次观察容易受拍摄光线、分缝和洗发间隔影响，暂时不必给自己下结论。',advice:'在相近光线、相同角度下记录头顶状态，避免过紧扎发和反复拉扯；若近期明显增多或出现局部稀疏，建议咨询皮肤科。',followup:'留意变化出现的时间及是否持续，结合近期作息、身体状态和洗护习惯一起记录。'},
+ {type:'日常平衡养护',observation:'你想更了解日常养护。可以先从头皮洗后的舒适程度、发尾的手感，以及适合自己的洗护间隔开始观察。',advice:'先保持简单稳定的洗护习惯，轻柔清洁、充分冲洗，再根据自己的真实感受逐步调整。',followup:'不用追求每天完全相同的状态，留意一段时间里的舒适感和发丝手感就好。'}
+];
+function makeReport(){const r=reports[answers[0]];$('#report-type').textContent=r.type;$('#report-date').textContent=new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());$('#report-observation').textContent=r.observation+(answers[1]===1?' 你也提到已经持续一段时间，后续沟通时可以说明大致开始时间。':'');$('#report-advice').textContent=r.advice+(answers[2]===1?' 生活节奏较紧张时，也可以从尽量固定入睡时间开始。':answers[2]===2?' 近期有染烫或造型时，尽量给发丝留出休息的时间。':'');$('#report-followup').textContent=r.followup;$('#report-tags').replaceChildren();questions.forEach((q,i)=>{const tag=document.createElement('span');tag.textContent=q.options[answers[i]];$('#report-tags').append(tag);});const notes=$('#notes').value.trim();$('#report-note').hidden=!notes;$('#report-note').textContent='你的补充记录：'+notes;$('#report-photo-wrap').hidden=!photoUrl;if(photoUrl)$('#report-photo').src=photoUrl;else $('#report-photo').removeAttribute('src');}
+function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3500);}
+$('#photo').onchange=()=>{const file=$('#photo').files[0];if(!file)return;if(!file.type.startsWith('image/')||file.size>10*1024*1024){toast('请选择不超过 10MB 的图片。');$('#photo').value='';return;}const candidate=URL.createObjectURL(file);const img=new Image();img.onload=()=>{if(photoUrl)URL.revokeObjectURL(photoUrl);photoUrl=candidate;$('#photo-preview').src=photoUrl;$('#photo-wrap').hidden=false;};img.onerror=()=>{URL.revokeObjectURL(candidate);$('#photo').value='';toast('这张图片无法预览，请换一张 JPG 或 PNG 照片。');};img.src=candidate;};
+$('#remove-photo').onclick=()=>{if(photoUrl)URL.revokeObjectURL(photoUrl);photoUrl=null;$('#photo').value='';$('#photo-preview').removeAttribute('src');$('#photo-wrap').hidden=true;};
+$('#copy-wechat').onclick=async()=>{try{await navigator.clipboard.writeText('18666095939');toast('微信号已复制，打开微信添加朋友即可。');}catch{toast('请长按微信号 18666095939 复制，再去微信添加。');}};
+$('#retry').onclick=()=>{step=0;answers=[null,null,null];show('quiz');render();$('#quiz-title').focus();};
+window.addEventListener('beforeunload',()=>{if(photoUrl)URL.revokeObjectURL(photoUrl);});
