@@ -5,7 +5,7 @@ const questions = [
   {title:'最近的生活节奏怎么样？',help:'可多选，比如熬夜和染烫可以同时选择。',multiple:true,exclusive:3,options:['作息比较规律','经常熬夜或压力大','近期染烫或频繁造型','没有特别留意']}
 ];
 let step=0, answers=[[],[],[]], toastTimer, reportText='';
-function show(view){for(const id of ['welcome','quiz','result'])$('#'+id).hidden=id!==view;window.scrollTo({top:0,behavior:'instant'});}
+function show(view){document.body.classList.toggle('showing-report',view==='result');for(const id of ['welcome','quiz','result'])$('#'+id).hidden=id!==view;window.scrollTo({top:0,behavior:'instant'});}
 function render(){
  const q=questions[step];
  $('#quiz-title').textContent=q.title;$('#question-help').textContent=q.help;
@@ -61,25 +61,27 @@ function makeReport(){
   verdict='没特别困扰，就把舒服的洗护习惯坚持好。';profile='不用为了养护制造焦虑，先认识自己的头皮舒适感和发尾手感。';
   actions=['下一次洗头用温水和指腹轻洗，充分冲洗，感受洗后的舒适度。','今天梳头放轻一点，吹风避免长时间高温，给日常习惯做一点小调整。'];title='简单、稳定、适合自己的日常养护';
  }
- // Keep every concern visible, even when the headline prioritizes comfort.
- const reasons=answers[0].map(i=>concerns[i].why);
  const duration=answers[1][0];
- reasons.push(['你选了「最近才注意到」：先从今天的小调整开始，观察感受是否改变。','你选了「已经有一段时间」：沟通时说明大致开始时间，持续不适别只靠换洗护产品。','你选了「时好时坏，说不准」：可以留意天气、洗护和生活节奏变化，不急着给原因下结论。'][duration]);
- const lifeNotes=['你选了「作息比较规律」：保留这个习惯，把注意力放回实际洗护感受。','你选了「经常熬夜或压力大」：这是沟通养护时值得了解的背景，不能仅凭这一项确定原因。','你选了「近期染烫或频繁造型」：发丝护理时关注高温和反复拉扯，近期可减少额外造型。','你选了「没有特别留意」：不用补做复杂记录，从下一次洗后的感受开始就好。'];
- reasons.push(...answers[2].map(i=>lifeNotes[i]));
- if(life(1)&&!has(2)&&!has(3)&&!has(1))actions[1]='今晚尽量在固定时间休息，给自己留一点放松时间；同时留意下一次洗后的舒适感。';
- $('#report-verdict').textContent=verdict;$('#report-profile').textContent=profile;
+ const kind=has(2)?'舒适优先养护型':has(0)&&has(1)?'头油尾干 · 分区养护型':has(3)?'发缝变化关注型':has(0)?'清爽优先养护型':has(1)?'发丝柔顺养护型':'日常平衡养护型';
+ const hook=has(2)?'总觉得干痒？下一瓶，先把洗后舒适放在前面。':has(0)&&has(1)?'头皮油、发尾干，洗发和护发别再“一把抓”。':has(3)?'在意掉发变化，先理清情况，再选日常洗护。':has(0)?'刚洗完又觉得油？该重新看看你的洗护搭配了。':has(1)?'洗完还是毛躁？你需要的不只是“洗干净”。':'选洗发水，适合自己的感受，比跟风更重要。';
+ const focus=answers[0].map(i=>questions[0].options[i]).join('、');
+ const background='你提到「'+focus+'」，'+['最近才开始注意。','而且已经有一段时间。','状态还会时好时坏。'][duration];
+ const reasoning=has(2)?'下一次洗护，建议把温和清洁、洗后不紧绷作为观察重点。仅凭“去油强”“洗得涩”选洗发水，未必符合你现在的舒适需求。':has(0)&&has(1)?'头皮的清洁需求和发尾的柔顺需求不一样。只靠一瓶洗发水、同一种用法照顾全部位置，可能顾此失彼。':has(3)?'洗护能照顾日常清洁和发丝手感，但不能凭问卷确定掉发原因。先了解变化是否持续，再聊适合的清洁护理；明显增多需咨询皮肤科。':has(0)?'选洗发水时，别只看“去油够不够强”，也要看洗后是否舒服、发尾是否干涩。值得从清洁方式和适合自己的产品搭配一起调整。':has(1)?'洗发水负责清洁，发尾还需要单独照顾柔顺。反复揉搓、长时间高温吹发，也值得一起调整，别只增加洗头次数。':'不必等到有困扰才关注洗护。下一瓶可以从头皮舒适度、发尾手感和自己的洗头节奏来选。';
+ const lifestyle=[life(2)?'近期染烫或造型，发尾护理与减少高温也值得关注。':'',life(1)?'熬夜或压力大时，也可以一起调整休息节奏。':''].filter(Boolean).join('');
+ const reasons=[background+reasoning+(lifestyle?' '+lifestyle:'')];
+ $('#report-hook').textContent=hook;
+ $('#report-verdict').textContent=kind;$('#report-profile').textContent=verdict;
  $('#report-date').textContent=new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- const tags=[answers[0].length>1?'多种需求 · 分区照顾':concerns[answers[0][0]].tag,['近期开始关注','已持续一段时间','状态时有波动'][duration],life(2)?'近期染烫／造型':life(1)?'生活节奏偏紧':life(0)?'作息较规律':'从日常观察开始'];
+ const tags=[answers[0].length>1?'多种需求 · 分区照顾':concerns[answers[0][0]].tag,['近期开始关注','已持续一段时间','状态时有波动'][duration],life(2)&&life(1)?'熬夜／压力 · 染烫／造型':life(2)?'近期染烫／造型':life(1)?'生活节奏偏紧':life(0)?'作息较规律':'从日常观察开始'];
  $('#report-tags').replaceChildren(...tags.map(t=>{const e=document.createElement('span');e.textContent=t;return e;}));
  $('#report-reasons').replaceChildren(...reasons.map(t=>{const e=document.createElement('p');e.textContent=t;return e;}));
  $('#report-actions').replaceChildren(...actions.map(t=>{const e=document.createElement('li');e.textContent=t;return e;}));
  $('#direction-title').textContent=title;$('#report-direction').textContent=answers[0].map(i=>concerns[i].direction).join(' ');
- $('#wechat-hook').textContent='你刚才提到「'+answers[0].map(i=>questions[0].options[i]).join('、')+'」。把结果发给我们，一起理清适合你的洗护搭配，不用自己反复试。';
- reportText=['我的姜力轻自测结果',verdict,...questions.map((q,i)=>q.title+' '+answers[i].map(v=>q.options[v]).join('、')),'今天的两件事：',...actions,'想领取专属养护方案和洗护体验装。'].join('\n');
+ $('#wechat-hook').textContent='针对你关注的「'+focus+'」，先聊清适合的洗护方向，再用体验装感受，不用一开始就买正装。';
+ reportText=['我的姜力轻自测结果',kind,hook,verdict,...questions.map((q,i)=>q.title+' '+answers[i].map(v=>q.options[v]).join('、')),'今天的两件事：',...actions,'想领取姜力洗护体验装，并了解适合我的洗发水。'].join('\n');
 }
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),4000);}
-$('#copy-wechat').onclick=async()=>{try{await navigator.clipboard.writeText('18666095939');toast('微信号已复制，打开微信添加朋友，发送「养护方案」。');}catch{toast('请长按微信号 18666095939 复制，再打开微信添加朋友。');}};
+$('#copy-wechat').onclick=async()=>{try{await navigator.clipboard.writeText('18666095939');toast('微信号已复制，打开微信添加朋友，发送「体验装」。');}catch{toast('请长按微信号 18666095939 复制，再打开微信添加朋友。');}};
 $('#copy-result').onclick=async()=>{try{await navigator.clipboard.writeText(reportText);toast('结果已复制，添加微信后粘贴发送给顾问即可。');}catch{toast('暂时无法自动复制，可以截屏保存报告，发给微信顾问。');}};
 $('#edit-answers').onclick=()=>{step=0;enterQuiz();};
 $('#retry').onclick=()=>{step=0;answers=[[],[],[]];enterQuiz();};
